@@ -10,14 +10,20 @@
     "preview": "vite preview",
     "start": "electron .",
     "electron:dev": "vite --mode development",
-    "electron:build": "tsc -p tsconfig.electron.json && vite build && electron-builder"
+    "electron:build": "tsc -p tsconfig.electron.json && vite build && electron-builder",
+    "rebuild": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "ethers": "^6.13.4",
     "evergreen-ui": "^7.1.9",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "recharts": "^2.15.0",
+    "tronweb": "^6.0.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@typescript-eslint/eslint-plugin": "^5.57.1",
