@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
+    "buffer": "^6.0.3",
     "ethers": "^6.13.4",
     "evergreen-ui": "^7.1.9",
     "react": "^18.2.0",

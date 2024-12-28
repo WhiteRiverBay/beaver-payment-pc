@@ -4,7 +4,7 @@ export const DEFAULT_NETWORKS = [
     {
         chainId: 1,
         name: "Ethereum", 
-        rpc: "https://mainnet.infura.io/v3/YOUR-PROJECT-ID",
+        rpc: "https://ethereum-rpc.publicnode.com",
         symbol: "ETH",
         decimals: 18,
         browser: "https://etherscan.io",
@@ -46,9 +46,9 @@ export const DEFAULT_NETWORKS = [
     },
     // tron
     {
-        chainId: 1000,
+        chainId: 728126428,
         name: "Tron",
-        rpc: "https://api.trongrid.io/jsonrpc",
+        rpc: "https://api.trongrid.io",
         symbol: "TRX",
         decimals: 6,
         browser: "https://tronscan.org",

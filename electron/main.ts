@@ -181,6 +181,8 @@ ipcMain.on('saveWalletBalances', (event, walletBalances: WalletBalance[]) => {
                     walletBalance.lastRefreshedAt
                 );
         });
+
+        event.reply('saveWalletBalances', walletBalances)
     } catch (err) {
         console.error('Error saving wallet balances:', err);
     } finally {

@@ -1,5 +1,6 @@
-import { Pane, SelectMenu, Button, Table, Dialog, TextInputField } from 'evergreen-ui'
+import { Pane, SelectMenu, Button, Table, Dialog, TextInputField, Overlay, Spinner } from 'evergreen-ui'
 import { ethers } from 'ethers'
+import {TronWeb} from 'tronweb'
 import React from 'react'
 import { Network } from '../model/network'
 import { DEFAULT_NETWORKS } from '../config/const'
@@ -7,7 +8,7 @@ import { ChainType } from '../model/chain'
 import { getChains, getWallets } from '../api/api'
 import { WalletBalance, WalletType } from '../model/wallet'
 import { getProvider } from '../api/web3'
-import { batchGetERC20Balances, batchGetETHBalances } from '../api/multicall'
+import { batchGetERC20Balances, batchGetETHBalances, batchGetTRONERC20Balances, batchGetTRXBalances } from '../api/multicall'
 
 interface WalletsProps {
 }
@@ -20,7 +21,8 @@ interface WalletsState {
     gaCode: string,
     page: number,
     pageSize: number,
-    total: number
+    total: number,
+    loading: boolean
 }
 
 class Wallets extends React.Component<WalletsProps, WalletsState> {
@@ -35,7 +37,8 @@ class Wallets extends React.Component<WalletsProps, WalletsState> {
             gaCode: '',
             page: 1,
             pageSize: 10,
-            total: 0
+            total: 0,
+            loading: false
         }
     }
 
@@ -112,7 +115,8 @@ class Wallets extends React.Component<WalletsProps, WalletsState> {
     }
     // load wallet balances
     loadWalletBalances = async (network: Network, wallets: WalletType[]) => {
-        const provider = getProvider(network)
+        this.setState({ loading: true })
+        const provider = getProvider(network, '01')
         if (network.chainType.toLowerCase() === 'evm') {
             batchGetETHBalances(
                 provider as ethers.JsonRpcProvider, 
@@ -121,6 +125,7 @@ class Wallets extends React.Component<WalletsProps, WalletsState> {
                 (balances) => {
                     // save balances to db
                     window.electron.send('saveWalletBalances', balances)
+                    this.setState({ loading: false })
                 }
             )
 
@@ -135,22 +140,45 @@ class Wallets extends React.Component<WalletsProps, WalletsState> {
                         (balances: WalletBalance[]) => {
                             // save balances to db
                             window.electron.send('saveWalletBalances', balances)    
+                            this.setState({ loading: false })   
                         }
                     )
                 }   
             }
-        } else {
-        }   
+        } else if (network.chainType.toLowerCase() === 'tron') {
+            batchGetTRXBalances(
+                provider as TronWeb, 
+                wallets.map(wallet => wallet.address), 
+                (balances) => {
+                    // save balances to db
+                    window.electron.send('saveWalletBalances', balances)
+                    this.setState({ loading: false })
+                }   
+            )       
+            const usdtContracts = this.state.chains?.find(chain => chain.chainId === network.chainId)?.usdtContracts
+            if (usdtContracts) {
+                for (const contract of usdtContracts) {
+                    batchGetTRONERC20Balances(
+                        provider as TronWeb, 
+                        contract.address, 
+                        wallets.map(wallet => wallet.address), 
+                        (balances) => {
+                            // save balances to db
+                            window.electron.send('saveWalletBalances', balances)
+                            this.setState({ loading: false })
+                        }
+                    )
+                }
+            }  
+        }
     }
 
     init = async () => {
         if (window.electron && window.electron.on) {
             window.electron.on('getWallets', (_event: any, wallets: WalletType[]) => {
-                console.log('wallets:', wallets)
                 this.setState({ wallets })
             })  
-            window.electron.on('saveOrUpdateWalletBalance', (_event: any, walletBalance: WalletBalance) => {
-                console.log('walletBalance:', walletBalance)
+            window.electron.on('saveOrUpdateWalletBalance', (_event: any, _walletBalance: WalletBalance) => {
                 // load wallets
                 if (this.state.selectedNetwork) { 
                     this.loadWallets(this.state.selectedNetwork)
@@ -203,7 +231,9 @@ class Wallets extends React.Component<WalletsProps, WalletsState> {
                     <Table>
                         <Table.Head>
                             <Table.TextHeaderCell>Address</Table.TextHeaderCell>
-                            <Table.TextHeaderCell textAlign='right'>ETH</Table.TextHeaderCell>
+                            <Table.TextHeaderCell textAlign='right'>
+                                {this.state.selectedNetwork?.symbol}
+                            </Table.TextHeaderCell>
                             {this.state.selectedNetwork && this.state.chains?.find(chain => chain.chainId === this.state.selectedNetwork?.chainId)?.usdtContracts?.map(contract => (
                                 <Table.TextHeaderCell textAlign='right' key={contract.symbol}>{contract.symbol}</Table.TextHeaderCell>
                             ))}
@@ -213,7 +243,7 @@ class Wallets extends React.Component<WalletsProps, WalletsState> {
                                 <Table.Row key={index}>
                                     <Table.TextCell color='gray'>{wallet.address.slice(0,8)}...{wallet.address.slice(-6)}</Table.TextCell>
                                     <Table.TextCell color='gray' textAlign='right'>
-                                        {this.getBalance(wallet, this.state.selectedNetwork?.chainId.toString(), '', 18)}
+                                        {this.getBalance(wallet, this.state.selectedNetwork?.chainId.toString(), '', this.state.selectedNetwork?.decimals ?? 18)}
                                     </Table.TextCell>
                                     {this.state.selectedNetwork && this.state.chains?.find(chain => chain.chainId === this.state.selectedNetwork?.chainId)?.usdtContracts?.map(contract => (
                                         <Table.TextCell color='gray' textAlign='right' key={contract.symbol}>
@@ -240,6 +270,11 @@ class Wallets extends React.Component<WalletsProps, WalletsState> {
                         />  
                     </form>
                 </Dialog>   
+                <Overlay isShown={this.state.loading}>
+                    <Pane display='flex' justifyContent='center' alignItems='center' height='100%'>
+                        <Spinner size={40} />
+                    </Pane> 
+                </Overlay>
             </Pane>
         )
     }
