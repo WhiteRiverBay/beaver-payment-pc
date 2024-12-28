@@ -2,11 +2,11 @@ import { Pane, Tab, Tablist, majorScale } from 'evergreen-ui'
 import { useState } from 'react'
 import Dashboard from './pages/Dashboard'
 import Wallets from './pages/Wallets'
-import Backup from './pages/Backup'
 import Settings from './pages/Settings'
-import Utils from './pages/Utils'
+import Server from './pages/Server'
+import Orders from './pages/Orders'
 
-const tabs = ['Dashboard', 'Wallets', 'Backup', 'Utils', 'Settings']
+const tabs = ['Dashboard', 'Wallets', 'Server', 'Orders', 'Settings']
 
 export default function App() {
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -18,9 +18,9 @@ export default function App() {
       case 1:
         return <Wallets />
       case 2:
-        return <Backup />
+        return <Server />
       case 3:
-        return <Utils />
+        return <Orders />
       case 4:
         return <Settings />
       default:

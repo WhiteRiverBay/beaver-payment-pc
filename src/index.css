@@ -165,3 +165,7 @@ button:focus-visible {
 .width-100 {
   width: 100%;
 }
+
+.flex-column {
+  flex-direction: column;
+}

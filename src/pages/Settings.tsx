@@ -125,7 +125,7 @@ class NetworkSettings extends React.Component<{}, NetworkSettingsState> {
                 </Button> */}
                 <div className="margin-top-md">
                     {this.state.networks.map((network) => (
-                        <NetworkSettingItem network={network} onEdit={this.onEdit} onDelete={this.onDelete} />
+                        <NetworkSettingItem key={network.chainId} network={network} onEdit={this.onEdit} onDelete={this.onDelete} />
                     ))}
                 </div>
                 <Dialog

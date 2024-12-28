@@ -9,6 +9,7 @@ import { getChains, getWallets } from '../api/api'
 import { WalletBalance, WalletType } from '../model/wallet'
 import { getProvider } from '../api/web3'
 import { batchGetERC20Balances, batchGetETHBalances, batchGetTRONERC20Balances, batchGetTRXBalances } from '../api/multicall'
+import DataCard from '../component/DataCard'
 
 interface WalletsProps {
 }
@@ -22,7 +23,8 @@ interface WalletsState {
     page: number,
     pageSize: number,
     total: number,
-    loading: boolean
+    loading: boolean,
+    totalBalanceByContractAddress: { [key: string]: number }
 }
 
 class Wallets extends React.Component<WalletsProps, WalletsState> {
@@ -38,7 +40,8 @@ class Wallets extends React.Component<WalletsProps, WalletsState> {
             page: 1,
             pageSize: 10,
             total: 0,
-            loading: false
+            loading: false,
+            totalBalanceByContractAddress: {}
         }
     }
 
@@ -65,11 +68,13 @@ class Wallets extends React.Component<WalletsProps, WalletsState> {
                 // set selected network to the first one
                 this.setState({ selectedNetwork: networks[0] })
                 this.loadWallets(networks[0])
+                this.loadTotalBalance(networks[0])  
             } else {
                 this.setState({ networks: DEFAULT_NETWORKS })
                 // set selected network to the first one
                 this.setState({ selectedNetwork: DEFAULT_NETWORKS[0] })
                 this.loadWallets(DEFAULT_NETWORKS[0])
+                this.loadTotalBalance(DEFAULT_NETWORKS[0])
             }
         } catch (error) {
             console.error('Failed to load networks:', error)
@@ -81,6 +86,13 @@ class Wallets extends React.Component<WalletsProps, WalletsState> {
         if (network) {
             this.setState({ selectedNetwork: network, wallets: [] })
             this.loadWallets(network)
+            this.loadTotalBalance(network)  
+        }
+    }
+
+    loadTotalBalance = async (network: Network) => {
+        if (window.electron && window.electron.send) {
+            window.electron.send('sumWalletBalanceByChainIdAndContractAddress', network.chainId.toString()) 
         }
     }
 
@@ -184,6 +196,14 @@ class Wallets extends React.Component<WalletsProps, WalletsState> {
                     this.loadWallets(this.state.selectedNetwork)
                 }
             })
+            window.electron.on('sumWalletBalanceByChainIdAndContractAddress', (_event: any, balanceRows: any[]) => {
+                console.log('sumWalletBalanceByChainIdAndContractAddress:', balanceRows)
+                const balanceMap = Object.values(balanceRows).reduce((acc: { [key: string]: number }, row: any) => {
+                    acc[row.contractAddress] = Number(row['SUM(balance)'])
+                    return acc
+                }, {})
+                this.setState({ totalBalanceByContractAddress: balanceMap })
+            }) 
         } else {
             console.error('window.electron is not defined or does not have a send method')
         }
@@ -194,6 +214,11 @@ class Wallets extends React.Component<WalletsProps, WalletsState> {
         const balance = wallet.balances?.find(balance => balance.chainId === chainId && balance.contractAddress === contractAddress)
         return balance ? ethers.formatUnits(balance.balance + "", decimals) : 0
     }
+
+    formatBalance = (balance: number, decimals: number) => {
+        if (balance === 0) return 0 
+        return ethers.formatUnits(balance + "", decimals)
+    }   
 
     render() {
         return (
@@ -224,6 +249,13 @@ class Wallets extends React.Component<WalletsProps, WalletsState> {
                                 this.loadWalletBalances(this.state.selectedNetwork, this.state.wallets)
                             }
                         }}>Refresh</Button>
+                    </div>
+                </Pane>
+                <Pane>
+                    <div className='flex gap-md justify-evenly'>
+                        {this.state.selectedNetwork && this.state.chains?.find(chain => chain.chainId === this.state.selectedNetwork?.chainId)?.usdtContracts?.map(contract => (
+                            <DataCard key={contract.symbol} title={contract.symbol} value={this.formatBalance(this.state.totalBalanceByContractAddress[contract.address] ?? 0, contract.decimals)} unit="" color="blue"/>
+                        )) }
                     </div>
                 </Pane>
                 <Pane className='margin-top-md'>

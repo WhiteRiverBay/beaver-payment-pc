@@ -2,6 +2,7 @@
 const electron = require("electron");
 const path = require("path");
 const Database = require("better-sqlite3");
+const fs = require("fs");
 const dbPath = path.join(electron.app.getPath("userData"), "./wallets.db");
 const isDev = process.env.NODE_ENV === "development";
 function createWindow() {
@@ -85,6 +86,20 @@ electron.ipcMain.on("getWalletsPage", (event, chainType, page, pageSize) => {
   db.close();
   event.reply("getWalletsPage", wallets, total);
 });
+electron.ipcMain.on("sumWalletBalanceByChainId", (event, chainId) => {
+  const db = new Database(dbPath);
+  const balance = db.prepare("SELECT SUM(balance) FROM wallet_balance WHERE chainId = ?").get(chainId);
+  db.close();
+  event.reply("sumWalletBalanceByChainId", balance);
+});
+electron.ipcMain.on("sumWalletBalanceByChainIdAndContractAddress", (event, chainId) => {
+  const db = new Database(dbPath);
+  const balance = db.prepare("SELECT contractAddress, SUM(balance) FROM wallet_balance WHERE chainId = ? GROUP BY contractAddress").all(
+    chainId
+  );
+  db.close();
+  event.reply("sumWalletBalanceByChainIdAndContractAddress", balance);
+});
 electron.ipcMain.on("saveWallets", (event, wallets) => {
   const db = new Database(dbPath);
   try {
@@ -143,6 +158,16 @@ electron.ipcMain.on("saveWalletBalances", (event, walletBalances) => {
     db.close();
   }
 });
+electron.ipcMain.on("backupDatabase", (event, backupDir) => {
+  const db = new Database(dbPath);
+  backupDatabase(db, backupDir);
+  db.close();
+  event.reply("backupDatabase", "Database backup completed");
+});
+electron.ipcMain.on("listBackupFiles", (event, backupDir) => {
+  const files = fs.readdirSync(backupDir);
+  event.reply("listBackupFiles", files);
+});
 function ensureTableExists(db) {
   db.prepare(`
         CREATE TABLE IF NOT EXISTS wallets (
@@ -168,4 +193,9 @@ function ensureWalletBalanceTableExists(db) {
             PRIMARY KEY (address, chainId, contractAddress)
         )
     `).run();
+}
+function backupDatabase(db, backupDir) {
+  const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[-:Z]/g, "").replace(/\.\d{3}/, "");
+  const backupPath = path.join(backupDir, `./wallets.db.backup.${timestamp}`);
+  fs.copyFileSync(dbPath, backupPath);
 }

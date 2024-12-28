@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'path'
 import Database from 'better-sqlite3'
 import type { Database as DatabaseType } from 'better-sqlite3'
-
+import fs from 'fs'
 const dbPath = path.join(app.getPath('userData'), './wallets.db')
 
 // 判断是否是开发环境
@@ -104,6 +104,23 @@ ipcMain.on('getWalletsPage', (event, chainType, page, pageSize) => {
     event.reply('getWalletsPage', wallets, total)
 })
 
+// sumWalletBalanceByChainId
+ipcMain.on('sumWalletBalanceByChainId', (event, chainId) => {
+    const db = new Database(dbPath)
+    const balance = db.prepare('SELECT SUM(balance) FROM wallet_balance WHERE chainId = ?').get(chainId)
+    db.close()
+    event.reply('sumWalletBalanceByChainId', balance)
+})
+
+// sumWalletBalanceByChainIdAndContractAddress
+ipcMain.on('sumWalletBalanceByChainIdAndContractAddress', (event, chainId) => {
+    const db = new Database(dbPath)
+    const balance = db.prepare('SELECT contractAddress, SUM(balance) FROM wallet_balance WHERE chainId = ? GROUP BY contractAddress').all(
+        chainId,
+    )
+    db.close()
+    event.reply('sumWalletBalanceByChainIdAndContractAddress', balance)
+}) 
 
 interface Wallet {
     address: string
@@ -190,6 +207,20 @@ ipcMain.on('saveWalletBalances', (event, walletBalances: WalletBalance[]) => {
     }
 });
 
+// backupDatabase
+ipcMain.on('backupDatabase', (event, backupDir) => {
+    const db = new Database(dbPath)
+    backupDatabase(db, backupDir)
+    db.close()
+    event.reply('backupDatabase', 'Database backup completed')
+})
+
+// list all backup files
+ipcMain.on('listBackupFiles', (event, backupDir) => {
+    const files = fs.readdirSync(backupDir)
+    event.reply('listBackupFiles', files)
+})  
+
 function ensureTableExists(db: DatabaseType) {
     db.prepare(`
         CREATE TABLE IF NOT EXISTS wallets (
@@ -216,6 +247,12 @@ function ensureWalletBalanceTableExists(db: DatabaseType) {
             PRIMARY KEY (address, chainId, contractAddress)
         )
     `).run();
+}
+
+function backupDatabase(db: DatabaseType, backupDir: string) {
+    const timestamp = new Date().toISOString().replace(/[-:Z]/g, '').replace(/\.\d{3}/, '');    
+    const backupPath = path.join(backupDir, `./wallets.db.backup.${timestamp}`)
+    fs.copyFileSync(dbPath, backupPath)
 }
 
 function resetDatabase(db: DatabaseType) {
