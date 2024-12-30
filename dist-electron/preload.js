@@ -8,5 +8,8 @@ electron.contextBridge.exposeInMainWorld("electron", {
   },
   on: (channel, func) => {
     electron.ipcRenderer.on(channel, func);
+  },
+  removeAllListeners: (channel) => {
+    electron.ipcRenderer.removeAllListeners(channel);
   }
 });

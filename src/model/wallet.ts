@@ -8,9 +8,13 @@ export interface WalletType {
 
 export interface WalletBalance {
     address: string
-    balance: BigInt
+    balance: bigint
     chainId: string
     contractAddress: string
     lastCollectedAt: string
     lastRefreshedAt: string
+}
+
+export interface EthBalance extends WalletBalance {
+    ethBalance: bigint
 }

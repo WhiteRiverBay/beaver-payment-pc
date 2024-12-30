@@ -5,8 +5,10 @@ import Wallets from './pages/Wallets'
 import Settings from './pages/Settings'
 import Server from './pages/Server'
 import Orders from './pages/Orders'
+import Airdrop from './pages/Airdrop'
+import Collect from './pages/Collect'
 
-const tabs = ['Dashboard', 'Wallets', 'Server', 'Orders', 'Settings']
+const tabs = ['Dashboard', 'Wallets', 'Airdrop', 'Collect', 'Server', 'Transactions', 'Settings']
 
 export default function App() {
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -18,10 +20,14 @@ export default function App() {
       case 1:
         return <Wallets />
       case 2:
-        return <Server />
+        return <Airdrop />
       case 3:
-        return <Orders />
+        return <Collect />
       case 4:
+        return <Server />
+      case 5:
+        return <Orders />
+      case 6:
         return <Settings />
       default:
         return <Dashboard />

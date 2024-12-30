@@ -86,6 +86,31 @@ electron.ipcMain.on("getWalletsPage", (event, chainType, page, pageSize) => {
   db.close();
   event.reply("getWalletsPage", wallets, total);
 });
+electron.ipcMain.on("getWalletBalanceByChainIdAndContractAddressAndBalanceMoreThan", (event, { chainId, contractAddress, balance }) => {
+  if (!contractAddress || !balance) {
+    console.error("Missing contractAddress or balance");
+    event.reply("getWalletBalanceByChainIdAndContractAddressAndBalanceMoreThan", [], { total: 0 });
+    return;
+  }
+  const db = new Database(dbPath);
+  const result = db.prepare("SELECT * FROM wallet_balance WHERE chainId = ? AND contractAddress = ? AND balance >= ?").all(chainId, contractAddress, balance);
+  for (const item of result) {
+    const ethBalance = db.prepare("SELECT balance FROM wallet_balance WHERE chainId = ? AND contractAddress = ? AND address = ?").get(item.chainId, "", item.address);
+    if (ethBalance) {
+      item.ethBalance = BigInt(ethBalance.balance);
+    }
+  }
+  const total = db.prepare("SELECT COUNT(*) AS total FROM wallet_balance WHERE chainId = ? AND contractAddress = ? AND balance >= ?").get(chainId, contractAddress, balance);
+  const sumBalance = db.prepare("SELECT SUM(balance) AS total FROM wallet_balance WHERE chainId = ? AND contractAddress = ? AND balance >= ?").get(chainId, contractAddress, balance);
+  db.close();
+  event.reply("getWalletBalanceByChainIdAndContractAddressAndBalanceMoreThan", result, total, sumBalance);
+});
+electron.ipcMain.on("getEthBalanceByChainIdAndAddress", (event, chainId) => {
+  const db = new Database(dbPath);
+  const result = db.prepare("SELECT balance FROM wallet_balance WHERE chainId = ? AND contractAddress = ?").get(chainId, "");
+  db.close();
+  event.reply("getEthBalanceByChainIdAndAddress", result);
+});
 electron.ipcMain.on("sumWalletBalanceByChainId", (event, chainId) => {
   const db = new Database(dbPath);
   const balance = db.prepare("SELECT SUM(balance) FROM wallet_balance WHERE chainId = ?").get(chainId);

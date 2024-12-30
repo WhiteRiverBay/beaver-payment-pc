@@ -169,3 +169,11 @@ button:focus-visible {
 .flex-column {
   flex-direction: column;
 }
+
+.gap-sm {
+  gap: 8px;
+}
+
+.margin-right-sm {
+  margin-right: 8px;
+} 

@@ -104,6 +104,37 @@ ipcMain.on('getWalletsPage', (event, chainType, page, pageSize) => {
     event.reply('getWalletsPage', wallets, total)
 })
 
+// getWalletBalanceByChainIdAndContractAddressAndBalanceMoreThan    
+ipcMain.on('getWalletBalanceByChainIdAndContractAddressAndBalanceMoreThan', (event, { chainId, contractAddress, balance, }) => {
+
+    if (!contractAddress || !balance) {
+        console.error('Missing contractAddress or balance');
+        event.reply('getWalletBalanceByChainIdAndContractAddressAndBalanceMoreThan', [], { total: 0 });
+        return;
+    }
+
+    const db = new Database(dbPath);
+    const result = db.prepare('SELECT * FROM wallet_balance WHERE chainId = ? AND contractAddress = ? AND balance >= ?').all(chainId, contractAddress, balance);
+    for (const item of result as Array<{chainId: string, address: string}>) {
+        const ethBalance = db.prepare('SELECT balance FROM wallet_balance WHERE chainId = ? AND contractAddress = ? AND address = ?').get(item.chainId, '', item.address) as { balance: string };
+        if (ethBalance) {
+            (item as any).ethBalance = BigInt(ethBalance.balance)
+        }
+    }
+    const total = db.prepare('SELECT COUNT(*) AS total FROM wallet_balance WHERE chainId = ? AND contractAddress = ? AND balance >= ?').get(chainId, contractAddress, balance);
+    const sumBalance = db.prepare('SELECT SUM(balance) AS total FROM wallet_balance WHERE chainId = ? AND contractAddress = ? AND balance >= ?').get(chainId, contractAddress, balance);
+    db.close();
+    event.reply('getWalletBalanceByChainIdAndContractAddressAndBalanceMoreThan', result, total, sumBalance);
+})  
+
+// getEthBalanceByChainIdAndAddress
+ipcMain.on('getEthBalanceByChainIdAndAddress', (event, chainId) => {
+    const db = new Database(dbPath)
+    const result = db.prepare('SELECT balance FROM wallet_balance WHERE chainId = ? AND contractAddress = ?').get(chainId, '');
+    db.close()
+    event.reply('getEthBalanceByChainIdAndAddress', result)
+})
+
 // sumWalletBalanceByChainId
 ipcMain.on('sumWalletBalanceByChainId', (event, chainId) => {
     const db = new Database(dbPath)
