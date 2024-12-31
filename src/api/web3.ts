@@ -1,7 +1,13 @@
 import { Network } from "../model/network";
-import { ethers } from "ethers";
+import { ethers, Transaction } from "ethers";
 import { TronWeb } from 'tronweb';
 import { AIRDROP_ABI, ERC20_ABI } from "../config/abi";
+
+const chunk = <T>(arr: T[], size: number): T[][] => {
+    return Array.from({ length: Math.ceil(arr.length / size) }, (_, i) =>
+        arr.slice(i * size, i * size + size)
+    );
+};
 
 export const getEvmProvider = (network: Network) => {
     if (network.chainType.toLowerCase() === 'evm') {
@@ -38,19 +44,19 @@ export const getProvider = (network: Network, privateKey: string | undefined) =>
 export const AIRDROP_CONTRACT_ADDRESS_EVM = '0xE9511e55d2AaC1F62D7e3110f7800845dB2a31F1'
 export const AIRDROP_CONTRACT_ADDRESS_TRON = 'TNnHipM7aZMYYanXhESgRV9NmjndcgvaXu'
 
-export const airdropETH = async (provider: ethers.JsonRpcProvider, privateKey: string, addresses: string[], amountWei: bigint, gasLimit: number, gasPrice: bigint) => {
+export const airdropETH = async (provider: ethers.JsonRpcProvider, privateKey: string, addresses: string[], amountWei: bigint, gasPrice: bigint) => {
     const wallet = new ethers.Wallet(privateKey, provider)
     const contract = new ethers.Contract(AIRDROP_CONTRACT_ADDRESS_EVM, AIRDROP_ABI, wallet)
     const amounts = addresses.map(() => amountWei)
     const fee = await contract.fee();
 
     const tx = await contract.airdropCoin(addresses, amounts, {
-        gasLimit,
         gasPrice,
         value: fee + amountWei * BigInt(addresses.length)
     })
     return tx
 }
+
 
 export const estimateAirdropETH = async (provider: ethers.JsonRpcProvider, addresses: string[], amountWei: bigint): Promise<bigint> => {
     const contract = new ethers.Contract(AIRDROP_CONTRACT_ADDRESS_EVM, AIRDROP_ABI, provider)
@@ -58,7 +64,8 @@ export const estimateAirdropETH = async (provider: ethers.JsonRpcProvider, addre
 
     const gasLimit = await provider.estimateGas({
         to: AIRDROP_CONTRACT_ADDRESS_EVM,
-        data: contract.interface.encodeFunctionData('airdropCoin', [addresses, amounts])
+        data: contract.interface.encodeFunctionData('airdropCoin', [addresses, amounts]),
+        value: amountWei * BigInt(addresses.length)
     })
     return gasLimit
 }
@@ -76,3 +83,52 @@ export const airdropTRX = async (provider: TronWeb, privateKey: string, addresse
     })
     return tx
 }
+
+export const batchAirdropETH = async (
+    provider: ethers.JsonRpcProvider,
+    privateKey: string,
+    addresses: string[],
+    amountWei: bigint,
+    gasPrice: bigint,
+    batchSize: number,
+    onProgress: (txHash: string) => Promise<void>
+) => {
+    const wallet = new ethers.Wallet(privateKey, provider)
+    const contract = new ethers.Contract(AIRDROP_CONTRACT_ADDRESS_EVM, AIRDROP_ABI, wallet)
+    const amounts = addresses.map(() => amountWei)
+    const fee = await contract.fee()
+
+
+    for (const batch of chunk(addresses, batchSize)) {
+        const tx = await contract.airdropCoin(batch, amounts, {
+            gasPrice,
+            value: fee + amountWei * BigInt(batch.length),
+        });
+        await tx.wait(1)
+        await onProgress(tx.hash)
+    }
+
+}
+
+export const batchAirdropTRX = async (provider: TronWeb,
+    privateKey: string,
+    addresses: string[],
+    amountWei: bigint,
+    batchSize: number,
+    onProgress: (txHash: string) => Promise<void>) => {
+
+    const tron = provider
+    tron.setPrivateKey(privateKey)
+
+    const contract = tron.contract(AIRDROP_ABI, AIRDROP_CONTRACT_ADDRESS_TRON)
+    const amounts = addresses.map(() => amountWei)
+    const fee = await contract.fee().call()
+
+    for (const batch of chunk(addresses, batchSize)) {
+        const tx = await contract.airdropCoin(batch, amounts).send({
+            value: fee + amountWei * BigInt(batch.length)
+        })
+        await tx.wait(1)    
+        await onProgress(tx.txid)
+    }
+}   

@@ -7,8 +7,7 @@ import Server from './pages/Server'
 import Orders from './pages/Orders'
 import Airdrop from './pages/Airdrop'
 import Collect from './pages/Collect'
-
-const tabs = ['Dashboard', 'Wallets', 'Airdrop', 'Collect', 'Server', 'Transactions', 'Settings']
+const tabs = ['Dashboard', 'Wallets', 'Airdrop Gas', 'Collect Token', 'Server', 'Transactions', 'Settings']
 
 export default function App() {
   const [selectedIndex, setSelectedIndex] = useState(0)

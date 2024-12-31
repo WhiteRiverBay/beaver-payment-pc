@@ -1,12 +1,14 @@
 import React from "react";
-import { Pane, Heading, Select, Group, TextInput, IconButton, SearchIcon, Spinner, Button, toaster, Table, Dialog, TextInputField, Alert } from "evergreen-ui";
+import { Pane, Heading, Select, Group, TextInput, Button, toaster, Table, Dialog, TextInputField, Alert, Spinner, Overlay } from "evergreen-ui";
 import { ChainType, UsdtContract } from "../model/chain";
 import { Network } from "../model/network";
 import DataCard from "../component/DataCard";
-import { EthBalance, WalletBalance } from "../model/wallet";
+import { EthBalance } from "../model/wallet";
 import { getChains } from "../api/api";
 import { DEFAULT_NETWORKS } from "../config/const";
 import { ethers } from "ethers";
+import { airdropETH, batchAirdropETH, batchAirdropTRX, estimateAirdropETH, getProvider } from "../api/web3";
+import { TronWeb } from "tronweb";
 
 interface AirdropProps {
 }
@@ -30,6 +32,8 @@ interface AirdropState {
     privateKey: string
     fromAddress: string
     fromAddressBalance: bigint
+    airdroping: boolean
+    currentAirdropTx: string
 }
 
 class Airdrop extends React.Component<AirdropProps, AirdropState> {
@@ -49,11 +53,13 @@ class Airdrop extends React.Component<AirdropProps, AirdropState> {
             estimatedCost: 0n,
             sumBalance: 0n,
             ethBalance: new Map(),
-            showAirdropDialog: true,
+            showAirdropDialog: false,
             batchSize: 250,
             privateKey: '',
             fromAddress: '',
-            fromAddressBalance: 0n
+            fromAddressBalance: 0n,
+            airdroping: false,
+            currentAirdropTx: ''
         }
     }
 
@@ -154,10 +160,108 @@ class Airdrop extends React.Component<AirdropProps, AirdropState> {
         return
     }
 
+    onPrivateKeyChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const currentNetwork = this.state.networks.find(n => n.chainId === this.state.selectedChain?.chainId)
+        if (!currentNetwork) {
+            return
+        }
+        const provider = getProvider(currentNetwork, e.target.value || undefined)
+        if (!provider) {
+            return
+        }
+        try {
+            if (provider instanceof ethers.JsonRpcProvider) {
+                const wallet = new ethers.Wallet(e.target.value, provider)
+                const balance = await provider.getBalance(wallet.address)
+                this.setState({ fromAddress: wallet.address, fromAddressBalance: balance })
+
+                // Estimate gas cost for EVM chains
+                if (this.state.walletsBalance.length > 0 && this.state.amountEach > 0) {
+                    try {
+                        const addresses = this.state.walletsBalance.map(w => w.address)
+                        const amountEach = ethers.parseUnits(this.state.amountEach.toString(), this.state.usdtContract?.decimals || 18)
+                        const gasLimit = await estimateAirdropETH(provider, addresses, amountEach)
+                        this.setState({ estimatedCost: gasLimit * ethers.parseUnits(this.state.gasPrice.toString(), 'gwei') })
+                    } catch (error) {
+                        console.error('Failed to estimate gas:', error)
+                        toaster.danger('Failed to estimate gas')
+                    }
+                }
+
+            } else if (provider instanceof TronWeb) {
+                const wallet = provider
+                const balance = await wallet.trx.getBalance(wallet.defaultAddress?.base58)
+                if (wallet.defaultAddress?.base58) {
+                    this.setState({ fromAddress: wallet.defaultAddress.base58, fromAddressBalance: BigInt(balance) })
+                }
+            }
+        } catch (error) {
+            console.error(error)
+        }
+    }
+
+    doAirdrop = async () => {
+        const { fromAddress, privateKey, amountEach, gasPrice, estimatedCost, walletsBalance, usdtContract } = this.state
+        if (!fromAddress || !privateKey || !amountEach || !gasPrice || !estimatedCost || !walletsBalance || !usdtContract) {
+            toaster.danger('Please fill all fields')
+            return
+        }
+        const currentNetwork = this.state.networks.find(n => n.chainId === this.state.selectedChain?.chainId)
+        if (!currentNetwork) {
+            return
+        }
+        const provider = getProvider(currentNetwork, privateKey)
+        if (!provider) {
+            return
+        }
+        const addresses = walletsBalance.map(w => w.address)
+        const _gasPrice = ethers.parseUnits(gasPrice.toString(), 'gwei')
+        const _amountEach = ethers.parseUnits(this.state.amountEach.toString(), currentNetwork.decimals || 18)
+        if (provider instanceof ethers.JsonRpcProvider) {
+            this.setState({ airdroping: true })
+            try {
+                batchAirdropETH(provider,
+                    privateKey,
+                    addresses,
+                    _amountEach,
+                    _gasPrice,
+                    this.state.batchSize,
+                    async (txHash: string) => {
+                        console.log('tx', txHash)
+                        this.setState({ currentAirdropTx: txHash, })
+                    })
+            } catch (error) {
+                console.error('Failed to airdrop:', error)
+                toaster.danger('Failed to airdrop')
+            } finally {
+                this.setState({ airdroping: false })
+            }
+        } else if (provider instanceof TronWeb) {
+            this.setState({ airdroping: true })
+            try {
+                batchAirdropTRX(provider,
+                    privateKey,
+                    addresses,
+                    _amountEach,
+                    this.state.batchSize,
+                    async (txHash: string) => {
+                        console.log('tx', txHash)
+                        this.setState({ currentAirdropTx: txHash })
+                    })
+            } catch (error) {
+                console.error('Failed to airdrop:', error)
+                toaster.danger('Failed to airdrop')
+            } finally {
+                this.setState({ airdroping: false })
+            }
+        }
+
+    }
+
     render() {
         const { isLoading } = this.state
         return <Pane>
-            <Heading size={700}>Airdrop</Heading>
+            <Heading size={700}>Airdrop Gas</Heading>
             <Pane className="margin-top-md">
                 <Group className="items-center">
                     <Select marginRight={16} width="150px" onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
@@ -188,7 +292,7 @@ class Airdrop extends React.Component<AirdropProps, AirdropState> {
                             ) || null
                         }, () => {
                             this.getGasPrice()
-                            this.doQuery()  
+                            this.doQuery()
                         })
                     }}
                     >
@@ -239,7 +343,7 @@ class Airdrop extends React.Component<AirdropProps, AirdropState> {
                         <Table.TextHeaderCell> {this.state.usdtContract?.symbol}
                         </Table.TextHeaderCell>
                     </Table.Head>
-                    <Table.Body>
+                    <Table.Body height="calc(100vh - 350px)">
                         {this.state.walletsBalance.map((wallet: EthBalance) => (
                             <Table.Row key={wallet.address}>
                                 <Table.TextCell>{wallet.address}</Table.TextCell>
@@ -257,31 +361,45 @@ class Airdrop extends React.Component<AirdropProps, AirdropState> {
             </Pane>
             <Dialog
                 isShown={this.state.showAirdropDialog}
-                onCloseComplete={() => this.setState({ showAirdropDialog: false })}
+                onCloseComplete={() => this.doAirdrop()}
                 title="Airdrop"
             >
                 <Pane>
                     <TextInputField label={`Each airdrop amount (${this.state.selectedChain?.chainId === 56 ? 'BNB' :
                         this.state.selectedChain?.chainId === 728126428 ? 'TRX' :
                             'ETH'
-                        })`} placeholder="Amount" value={this.state.amountEach} onChange={(e) => this.setState({ amountEach: Number(e.target.value) })} />
+                        })`} placeholder="Amount" value={this.state.amountEach} onChange={(e: React.ChangeEvent<HTMLInputElement>) => this.setState({ amountEach: Number(e.target.value) })} />
                     <TextInputField label="Gas Price(Gwei)" placeholder="Gas Price" value={this.state.gasPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => this.setState({ gasPrice: Number(e.target.value) })} />
                     <TextInputField
                         label="Private Key (System will not save this private key anywhere)"
                         placeholder="Enter private key"
                         type="password"
+                        onChange={this.onPrivateKeyChange}
                     />
                     <Alert intent="none" title="Airdrop Task Information">
-                        <p>
-                            <div>From address: {this.state.fromAddress}  </div>
+                        <p className="text-sm">
+                            <div>From: {this.state.fromAddress}  </div>
                             <div>Balance: {this.state.fromAddressBalance ? ethers.formatUnits(this.state.fromAddressBalance, this.currentDecimals()) : 0}</div>
-                            <div>Total amount: {this.state.totalWallets * this.state.amountEach}</div>
-                            <div>Estimated cost: {this.state.estimatedCost ? ethers.formatUnits(this.state.estimatedCost, this.currentDecimals()) : 0}</div>
+                            <div>Total amount: {this.state.totalWallets * this.state.amountEach} {this.state.selectedChain?.chainId === 56 ? 'BNB' :
+                                this.state.selectedChain?.chainId === 728126428 ? 'TRX' :
+                                    'ETH'
+                            }   </div>
+                            <div>Each tx gas: {this.state.estimatedCost ? ethers.formatUnits(this.state.estimatedCost, this.currentDecimals()) : 0} {this.state.selectedChain?.chainId === 56 ? 'BNB' :
+                                this.state.selectedChain?.chainId === 728126428 ? 'TRX' :
+                                    'ETH'
+                            }</div>
                             <div>Total transactions: {Math.ceil(this.state.totalWallets / this.state.batchSize)}</div>
                         </p>
                     </Alert>
                 </Pane>
             </Dialog>
+
+            <Overlay isShown={this.state.airdroping}>
+                <Pane display='flex' justifyContent='center' alignItems='center' height='100%'>
+                    <Spinner size={40} marginRight={16}  />
+                    <div>Processing...{this.state.currentAirdropTx}</div>
+                </Pane>
+            </Overlay>
         </Pane>
     }
 }

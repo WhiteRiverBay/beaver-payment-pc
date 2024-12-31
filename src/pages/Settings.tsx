@@ -50,7 +50,7 @@ class Settings extends React.Component<SettingsProps, SettingsState> {
                     flex={1} 
                     background="white" 
                     width="100%" 
-                    height="calc(100vh - 150px)" 
+                    height="calc(100vh - 100px)" 
                     overflow="auto"
                 >
                     {React.createElement(this.state.tabMapping[this.state.selectedTab])}

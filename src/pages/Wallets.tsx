@@ -285,7 +285,7 @@ class Wallets extends React.Component<WalletsProps, WalletsState> {
                                 <Table.TextHeaderCell textAlign='right' key={contract.symbol}>{contract.symbol}</Table.TextHeaderCell>
                             ))}
                         </Table.Head>
-                        <Table.Body>
+                        <Table.Body height="calc(100vh - 300px)">
                             {this.state.wallets.map((wallet, index) => (
                                 <Table.Row key={index}>
                                     <Table.TextCell color='gray'>
