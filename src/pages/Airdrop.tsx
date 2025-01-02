@@ -361,20 +361,27 @@ class Airdrop extends React.Component<AirdropProps, AirdropState> {
             </Pane>
             <Dialog
                 isShown={this.state.showAirdropDialog}
-                onCloseComplete={() => this.doAirdrop()}
+                onCloseComplete={() => this.setState({ showAirdropDialog: false })}
+                onConfirm={() => this.doAirdrop()}
                 title="Airdrop"
             >
                 <Pane>
-                    <TextInputField label={`Each airdrop amount (${this.state.selectedChain?.chainId === 56 ? 'BNB' :
+                    <TextInputField 
+                        required
+                        label={`Each airdrop amount (${this.state.selectedChain?.chainId === 56 ? 'BNB' :
                         this.state.selectedChain?.chainId === 728126428 ? 'TRX' :
                             'ETH'
                         })`} placeholder="Amount" value={this.state.amountEach} onChange={(e: React.ChangeEvent<HTMLInputElement>) => this.setState({ amountEach: Number(e.target.value) })} />
-                    <TextInputField label="Gas Price(Gwei)" placeholder="Gas Price" value={this.state.gasPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => this.setState({ gasPrice: Number(e.target.value) })} />
                     <TextInputField
-                        label="Private Key (System will not save this private key anywhere)"
+                        required
+                        label="Gas Price(Gwei)" placeholder="Gas Price" value={this.state.gasPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => this.setState({ gasPrice: Number(e.target.value) })} />
+                    <TextInputField
+                        required
+                        label="Private Key"
                         placeholder="Enter private key"
                         type="password"
                         onChange={this.onPrivateKeyChange}
+                        description="The private key of the wallet that will be used to airdrop."
                     />
                     <Alert intent="none" title="Airdrop Task Information">
                         <p className="text-sm">

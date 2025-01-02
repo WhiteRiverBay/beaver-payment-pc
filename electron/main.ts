@@ -106,7 +106,6 @@ ipcMain.on('getWalletsPage', (event, chainType, page, pageSize) => {
 
 // getWalletBalanceByChainIdAndContractAddressAndBalanceMoreThan    
 ipcMain.on('getWalletBalanceByChainIdAndContractAddressAndBalanceMoreThan', (event, { chainId, contractAddress, balance, }) => {
-
     if (!contractAddress || !balance) {
         console.error('Missing contractAddress or balance');
         event.reply('getWalletBalanceByChainIdAndContractAddressAndBalanceMoreThan', [], { total: 0 });

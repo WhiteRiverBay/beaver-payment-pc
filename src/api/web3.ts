@@ -128,7 +128,120 @@ export const batchAirdropTRX = async (provider: TronWeb,
         const tx = await contract.airdropCoin(batch, amounts).send({
             value: fee + amountWei * BigInt(batch.length)
         })
-        await tx.wait(1)    
+        await tx.wait(1)
         await onProgress(tx.txid)
     }
-}   
+}
+
+
+
+export const transferERC20 = async (
+    provider: ethers.JsonRpcProvider,
+    privateKey: string,
+    to: string,
+    contract: string,
+    gasPrice: string | undefined,
+    gasLimit: string | undefined,
+) => {
+    // ethers v6
+    const wallet = new ethers.Wallet(privateKey, provider);
+    const contractInstance = new ethers.Contract(contract, [
+        'function transfer(address to, uint256 value)',
+        'function decimals() view returns (uint8)',
+        'function balanceOf(address account) view returns (uint256)',
+        'function symbol() view returns (string)'
+    ], wallet);
+
+    const balance = await contractInstance.balanceOf(wallet.address);
+
+    const nonce = await provider.getTransactionCount(wallet.address);
+
+    const _gasPrice = gasPrice ? BigInt(gasPrice) : (await provider.getFeeData()).gasPrice;
+    const _gasLimit = gasLimit ? gasLimit : await contractInstance.transfer.estimateGas(to, balance);
+
+    const tx = {
+        to: contract,
+        value: 0,
+        data: contractInstance.interface.encodeFunctionData('transfer', [to, balance]),
+        gasPrice: _gasPrice,
+        gasLimit: _gasLimit,
+        nonce
+    }
+
+    const response = await wallet.sendTransaction(tx);
+    console.log(`Transaction Hash: ${response.hash}`);
+    return response.hash
+}
+
+
+export const transferTRC20 = async (
+    tronWeb: TronWeb,
+    privateKey: string,
+    to: string,
+    contract: string,
+) => {
+
+    tronWeb.setPrivateKey(privateKey)
+
+    const trc20abi = [
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "to",
+                    "type": "address"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "value",
+                    "type": "uint256"
+                }
+            ],
+            "name": "transfer",
+            "outputs": [
+                {
+                    "internalType": "bool",
+                    "name": "",
+                    "type": "bool"
+                }
+            ],
+            "stateMutability": "nonpayable",
+            "type": "function",
+            "constant": false,
+            "payable": false
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "",
+                    "type": "address"
+                }
+            ],
+            "name": "balanceOf",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function",
+            "constant": true,
+            "payable": false
+        }
+    ];
+    const contractInstance = tronWeb.contract(
+        trc20abi,
+        contract
+    ); //.at(contract);
+
+    const balance = await contractInstance.balanceOf(tronWeb.defaultAddress.base58).call();
+
+    const response = await contractInstance.transfer(to, balance).send();
+    console.log(`Transaction Hash: ${response}`);
+
+}
+
+

@@ -181,3 +181,19 @@ button:focus-visible {
 .text-center {
   text-align: center;
 }
+
+.col-6 {
+  width: 50%;
+}
+
+.text-info {
+  color: #0000FF;
+}
+
+.text-danger {
+  color: #FF0000;
+}
+
+.text-success {
+  color: #00FF00;
+} 
