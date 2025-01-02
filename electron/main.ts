@@ -37,7 +37,7 @@ app.whenReady().then(() => {
             tx.run(`
                 CREATE TABLE IF NOT EXISTS wallets (
                     address TEXT PRIMARY KEY,
-                    ecrypedPrivateKey TEXT NOT NULL,
+                    encryptedPrivateKey TEXT NOT NULL,
                     encryptedAesKey TEXT NOT NULL,
                     chainType TEXT NOT NULL,
                     uid TEXT NOT NULL,
@@ -154,7 +154,7 @@ ipcMain.on('sumWalletBalanceByChainIdAndContractAddress', (event, chainId) => {
 
 interface Wallet {
     address: string
-    ecrypedPrivateKey: string
+    encryptedPrivateKey: string
     encryptedAesKey: string
     chainType: string
     uid: string
@@ -179,9 +179,9 @@ ipcMain.on('saveWallets', (event, wallets: Wallet[]) => {
             wallets.forEach((wallet: Wallet) => {
                 const existing = tx.prepare('SELECT 1 FROM wallets WHERE address = ?').get(wallet.address)
                 if (!existing) {
-                    tx.prepare('INSERT INTO wallets (address, ecrypedPrivateKey, encryptedAesKey, chainType, uid, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+                    tx.prepare('INSERT INTO wallets (address, encryptedPrivateKey, encryptedAesKey, chainType, uid, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
                         wallet.address,
-                        wallet.ecrypedPrivateKey,
+                        wallet.encryptedPrivateKey,
                         wallet.encryptedAesKey,
                         wallet.chainType,
                         wallet.uid,
@@ -255,7 +255,7 @@ function ensureTableExists(db: DatabaseType) {
     db.prepare(`
         CREATE TABLE IF NOT EXISTS wallets (
             address TEXT PRIMARY KEY,
-            ecrypedPrivateKey TEXT NOT NULL,
+            encryptedPrivateKey TEXT NOT NULL,
             encryptedAesKey TEXT NOT NULL,
             chainType TEXT NOT NULL,
             uid TEXT NOT NULL,

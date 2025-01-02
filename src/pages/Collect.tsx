@@ -5,11 +5,16 @@ import { Network } from "../model/network";
 import { WalletBalance, WalletType } from "../model/wallet";
 import { getChains } from "../api/api";
 import { DEFAULT_NETWORKS } from "../config/const";
-import { ethers } from "ethers";
+import { ethers, JsonRpcProvider } from "ethers";
+import { decrypt } from "../api/encrypt";
+import { getProvider, transferERC20, transferTRC20 } from "../api/web3";
+import { TronWeb } from "tronweb";
 
 interface CollectLog {
     message: string,
     timestamp: number,
+    fromAddress: string | undefined,
+    amount: bigint | undefined,
     type: "info" | "error" | "success"
 }
 
@@ -35,6 +40,8 @@ interface CollectState {
 
     showAdminPrivateKey: boolean,
     adminPrivateKey: string,
+
+    gasPrice: string,
 }
 
 class Collect extends React.Component<CollectProps, CollectState> {
@@ -59,6 +66,7 @@ class Collect extends React.Component<CollectProps, CollectState> {
 
             showAdminPrivateKey: false,
             adminPrivateKey: "",
+            gasPrice: "0",
         };
     }
 
@@ -69,6 +77,7 @@ class Collect extends React.Component<CollectProps, CollectState> {
         }
         const chains = await getChains(serverUrl);
         this.setState({ chains, selectedChain: chains[0], selectedToken: chains[0].usdtContracts[0] });
+        this.loadGasPrice(chains[0]);
     }
 
     loadLocalNetworks = () => {
@@ -85,14 +94,31 @@ class Collect extends React.Component<CollectProps, CollectState> {
         }
     }
 
-    handleChainChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    handleChainChange = async (event: React.ChangeEvent<HTMLSelectElement>) => {
         const chainId = parseInt(event.target.value);
         const chain = this.state.chains.find(chain => chain.chainId === chainId) || null;
         if (chain) {
             this.setState({ selectedChain: chain });
             this.setState({ selectedToken: chain.usdtContracts[0] });
+            this.setState({ gasPrice: "0" });
+            this.loadGasPrice(chain);
         } else {
             toaster.danger("Failed to load chain");
+        }
+    }
+
+    loadGasPrice = async (chain: ChainType) => {
+        const network = this.state.networks.find(network => network.chainId === chain.chainId);
+        if (network) {
+            const provider = getProvider(network, this.state.adminPrivateKey);
+            if (provider instanceof JsonRpcProvider) {
+                const feeData = await provider.getFeeData();
+                const gasPrice = feeData.gasPrice || 0n;
+                this.setState({ gasPrice: ethers.formatUnits(gasPrice, "gwei") });
+            } else {
+                // For TronWeb, gas price is fixed at 420 sun (0.00042 TRX)
+                this.setState({ gasPrice: provider.fromSun(420).toString() });
+            }
         }
     }
 
@@ -112,7 +138,13 @@ class Collect extends React.Component<CollectProps, CollectState> {
         this.setState({ isCollecting: true });
         this.setState({
             logs: [
-                { message: "Start collecting task", type: "info", timestamp: Date.now() }
+                {
+                    message: "Start collecting task",
+                    type: "info",
+                    timestamp: Date.now(),
+                    fromAddress: undefined,
+                    amount: undefined
+                }
             ]
         });
         this.setState({ wallets: [] });
@@ -123,7 +155,17 @@ class Collect extends React.Component<CollectProps, CollectState> {
                 balance: ethers.parseUnits(this.state.minimalAmountThreshold.toString(), this.state.selectedToken?.decimals || 18) + ""
             });
         } catch (error) {
-            this.setState({ logs: [{ message: "Failed to get wallets", type: "error", timestamp: Date.now() }] });
+            this.setState({
+                logs: [
+                    {
+                        message: "Failed to get wallets",
+                        type: "error",
+                        timestamp: Date.now(),
+                        fromAddress: undefined,
+                        amount: undefined
+                    }
+                ]
+            });
         }
     }
 
@@ -134,12 +176,102 @@ class Collect extends React.Component<CollectProps, CollectState> {
         }
     }
 
-    transfer = (_event: any, wallet: WalletType) => {
+    transfer = async (_event: any, wallet: WalletType) => {
         // TODO: transfer
         const { logs } = this.state;
-        logs.push({ message: "Transferring " + wallet.address, type: "info", timestamp: Date.now() });
+
+        if (!wallet.encryptedPrivateKey) {
+            logs.push({
+                message: "Wallet private key not found",
+                type: "error",
+                timestamp: Date.now(),
+                fromAddress: wallet.address,
+                amount: undefined
+            });
+            this.setState({ logs });
+            return;
+        }
+
+        const privateKey = decrypt(this.state.adminPrivateKey, wallet.encryptedAesKey, wallet.encryptedPrivateKey);
+
+        const network = this.state.networks.find(network => network.chainId === this.state.selectedChain?.chainId);
+        if (!network) {
+            logs.push({
+                message: "Network not found",
+                type: "error",
+                timestamp: Date.now(),
+                fromAddress: wallet.address,
+                amount: undefined
+            });
+            this.setState({ logs });
+            return;
+        }
+
+        const provider = getProvider(network, privateKey);
+        const that = this;
+
+        const onProcess = async (
+            fromAddress: string, amount: bigint
+        ): Promise<void> => {
+            logs.push({
+                message: "Transferring " + fromAddress + " " + amount,
+                type: "info",
+                timestamp: Date.now(),
+                fromAddress: fromAddress,
+                amount: amount
+            });
+            that.setState({ logs });
+        }
+
+        const onError = async (error: any, fromAddress: string, amount: bigint): Promise<void> => {
+            logs.push({
+                message: "Failed to transfer " + fromAddress + " " + amount + ": " + error,
+                type: "error",
+                timestamp: Date.now(),
+                fromAddress: fromAddress,
+                amount: amount
+            });
+            that.setState({ logs });
+        }
+
+        if (provider instanceof JsonRpcProvider) {
+            const tx = await transferERC20(
+                provider,
+                privateKey,
+                this.state.toAddress,
+                this.state.selectedToken?.address || '',
+                this.state.gasPrice,
+                undefined,
+                onProcess,
+                onError
+            );
+            if (tx) {
+                await tx.wait(1)
+            }
+        } else if (provider instanceof TronWeb) {
+            const tx = await transferTRC20(
+                provider,
+                privateKey,
+                this.state.toAddress,
+                this.state.selectedToken?.address || '',
+                onProcess,
+                onError
+            );
+            if (tx) {
+                await tx.wait(1)
+            }
+        }
+
+
+        logs.push({
+            message: "Transferring " + wallet.address,
+            type: "info",
+            timestamp: Date.now(),
+            fromAddress: wallet.address,
+            amount: undefined
+        });
         this.setState({ logs });
-        
+
     }
 
     onWalletsLoaded = (_event: any, wallets: WalletBalance[], _total: number, _sumBalance: number) => {
@@ -148,7 +280,15 @@ class Collect extends React.Component<CollectProps, CollectState> {
         this.setState({ completedJobs: 0 });
         this.setState({ errorJobs: 0 });
         this.setState({ ignoredJobs: 0 });
-        this.setState({ logs: [{ message: "Start collecting task", type: "info", timestamp: Date.now() }] });
+        this.setState({
+            logs: [{
+                message: "Start collecting task",
+                type: "info",
+                timestamp: Date.now(),
+                fromAddress: undefined,
+                amount: undefined
+            }]
+        });
 
         wallets.forEach(wallet => {
             setTimeout(() => {
@@ -203,6 +343,18 @@ class Collect extends React.Component<CollectProps, CollectState> {
                             ))}
                         </SelectField>
                         <TextInputField required label={'Minimal Amount Threshold (' + this.state.selectedToken?.symbol + ')'} description="The minimal amount of tokens to collect" placeholder="The minimal amount of tokens to collect" name="chain" value={this.state.minimalAmountThreshold} onChange={(event: React.ChangeEvent<HTMLInputElement>) => this.setState({ minimalAmountThreshold: parseInt(event.target.value) })} />
+                        <TextInputField required label={
+                            this.state.selectedChain?.chainId === 728126428 ? "Energy Price (TRX)" : "Gas Price (Gwei)"
+                        }
+                            disabled={this.state.selectedChain?.chainId === 728126428}
+                            placeholder="The gas price to use" name="gasPrice" value={this.state.gasPrice.toString()} onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                                const value = event.target.value;
+                                if (value === "") {
+                                    this.setState({ gasPrice: "0" });
+                                } else {
+                                    this.setState({ gasPrice: value });
+                                }
+                            }} />
                         <Button marginRight={16} appearance="primary" intent="success" disabled={this.state.isCollecting} onClick={
                             () => {
                                 this.setState({ showAdminPrivateKey: true });
@@ -213,7 +365,7 @@ class Collect extends React.Component<CollectProps, CollectState> {
                 </Pane>
                 <Pane background="tint2" border="muted" borderRadius={4} padding={16}>
                     <div style={{
-                        height: "calc(100vh - 520px)",
+                        height: "calc(100vh - 580px)",
                         overflow: "auto"
                     }}>
                         {this.state.logs.map((log, index) => (

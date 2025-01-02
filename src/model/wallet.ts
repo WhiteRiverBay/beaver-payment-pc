@@ -1,6 +1,6 @@
 export interface WalletType {
     address: string
-    ecrypedPrivateKey: string
+    encryptedPrivateKey: string
     encryptedAesKey: string
     uid: string
     balances: WalletBalance[] | null

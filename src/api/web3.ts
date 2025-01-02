@@ -1,5 +1,5 @@
 import { Network } from "../model/network";
-import { ethers, Transaction } from "ethers";
+import { ethers, TransactionResponse } from "ethers";
 import { TronWeb } from 'tronweb';
 import { AIRDROP_ABI, ERC20_ABI } from "../config/abi";
 
@@ -142,7 +142,9 @@ export const transferERC20 = async (
     contract: string,
     gasPrice: string | undefined,
     gasLimit: string | undefined,
-) => {
+    onProgress: (fromAddress: string, amount: bigint) => Promise<void>,
+    onError: (error: any, fromAddress: string, amount: bigint) => Promise<void>
+): Promise<TransactionResponse | undefined> => {
     // ethers v6
     const wallet = new ethers.Wallet(privateKey, provider);
     const contractInstance = new ethers.Contract(contract, [
@@ -168,9 +170,15 @@ export const transferERC20 = async (
         nonce
     }
 
-    const response = await wallet.sendTransaction(tx);
-    console.log(`Transaction Hash: ${response.hash}`);
-    return response.hash
+    try {
+        onProgress(wallet.address, balance)
+        const response = await wallet.sendTransaction(tx);
+        console.log(`Transaction Hash: ${response.hash}`);
+        return response
+    } catch (error) {
+        onError(error, wallet.address, balance)
+        return undefined
+    }
 }
 
 
@@ -179,6 +187,8 @@ export const transferTRC20 = async (
     privateKey: string,
     to: string,
     contract: string,
+    onProgress: (fromAddress: string, amount: bigint) => Promise<void>,
+    onError: (error: any, fromAddress: string, amount: bigint) => Promise<void>
 ) => {
 
     tronWeb.setPrivateKey(privateKey)
@@ -238,9 +248,15 @@ export const transferTRC20 = async (
     ); //.at(contract);
 
     const balance = await contractInstance.balanceOf(tronWeb.defaultAddress.base58).call();
-
-    const response = await contractInstance.transfer(to, balance).send();
-    console.log(`Transaction Hash: ${response}`);
+    try {
+        onProgress(tronWeb.defaultAddress.base58 || '', balance)
+        const response = await contractInstance.transfer(to, balance).send();
+        console.log(`Transaction Hash: ${response}`);
+        return response 
+    } catch (error) {
+        onError(error, tronWeb.defaultAddress.base58 || '', balance)
+        return undefined
+    }
 
 }
 

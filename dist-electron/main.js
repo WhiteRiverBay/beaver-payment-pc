@@ -30,7 +30,7 @@ electron.app.whenReady().then(() => {
       tx.run(`
                 CREATE TABLE IF NOT EXISTS wallets (
                     address TEXT PRIMARY KEY,
-                    ecrypedPrivateKey TEXT NOT NULL,
+                    encryptedPrivateKey TEXT NOT NULL,
                     encryptedAesKey TEXT NOT NULL,
                     chainType TEXT NOT NULL,
                     uid TEXT NOT NULL,
@@ -133,9 +133,9 @@ electron.ipcMain.on("saveWallets", (event, wallets) => {
       wallets.forEach((wallet) => {
         const existing = tx.prepare("SELECT 1 FROM wallets WHERE address = ?").get(wallet.address);
         if (!existing) {
-          tx.prepare("INSERT INTO wallets (address, ecrypedPrivateKey, encryptedAesKey, chainType, uid, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+          tx.prepare("INSERT INTO wallets (address, encryptedPrivateKey, encryptedAesKey, chainType, uid, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
             wallet.address,
-            wallet.ecrypedPrivateKey,
+            wallet.encryptedPrivateKey,
             wallet.encryptedAesKey,
             wallet.chainType,
             wallet.uid,
@@ -197,7 +197,7 @@ function ensureTableExists(db) {
   db.prepare(`
         CREATE TABLE IF NOT EXISTS wallets (
             address TEXT PRIMARY KEY,
-            ecrypedPrivateKey TEXT NOT NULL,
+            encryptedPrivateKey TEXT NOT NULL,
             encryptedAesKey TEXT NOT NULL,
             chainType TEXT NOT NULL,
             uid TEXT NOT NULL,
