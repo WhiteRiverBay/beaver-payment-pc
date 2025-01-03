@@ -1,4 +1,4 @@
-import { Pane, TextInput, Select, Button, Table, Pagination, IconButton, EyeOnIcon, EyeOffIcon, InfoSignIcon, } from 'evergreen-ui'
+import { Pane, TextInput, Select, Button, Table, Pagination, IconButton, EyeOnIcon, EyeOffIcon, InfoSignIcon, Dialog, } from 'evergreen-ui'
 import React from 'react'
 import { TradeLog } from '../model/trade_log'
 
@@ -14,6 +14,8 @@ interface IOrdersState {
   txHash: string
   type: string
   uid: string
+  dialogOpen: boolean
+  dialogOrder: TradeLog | null
 }
 
 class Orders extends React.Component<IOrdersProps, IOrdersState> {
@@ -28,6 +30,8 @@ class Orders extends React.Component<IOrdersProps, IOrdersState> {
       txHash: '',
       type: '',
       uid: '',
+      dialogOpen: false,
+      dialogOrder: null,
     }
   }
 
@@ -146,7 +150,7 @@ class Orders extends React.Component<IOrdersProps, IOrdersState> {
                     new Date(order.createdAt).toLocaleString()
                   }</Table.TextCell>
                   <Table.TextCell flexBasis={100} flexShrink={0} flexGrow={0}>
-                    <IconButton icon={InfoSignIcon} intent='success' />
+                    <IconButton icon={InfoSignIcon} intent='success' onClick={() => this.setState({ dialogOpen: true, dialogOrder: order })} />
                   </Table.TextCell>
                 </Table.Row>
               ))}
@@ -171,6 +175,22 @@ class Orders extends React.Component<IOrdersProps, IOrdersState> {
             }}
           />
         </Pane>
+
+        <Dialog
+          isShown={this.state.dialogOpen}
+          onCloseComplete={() => this.setState({ dialogOpen: false })}
+          title="Order Detail"
+          hasCancel={false}
+        >
+          <div>Order Detail</div>
+          <div>
+            <div>Payment ID: {this.state.dialogOrder?.paymentId}</div>
+            <div>Memo: {this.state.dialogOrder?.memo}</div>
+            <div>Amount: {this.state.dialogOrder?.amount}</div>
+            <div>Type: {this.state.dialogOrder?.type}</div>
+            <div>Created At: {this.state.dialogOrder?.createdAt}</div>
+          </div>  
+        </Dialog>
       </Pane>
     )
   }
