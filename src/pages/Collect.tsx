@@ -39,8 +39,8 @@ interface CollectState {
     ignoredJobs: number,
 
     showAdminPrivateKey: boolean,
+    adminPrivateKeyFile: string,
     adminPrivateKey: string,
-
     gasPrice: string,
 }
 
@@ -65,6 +65,7 @@ class Collect extends React.Component<CollectProps, CollectState> {
             ignoredJobs: 0,
 
             showAdminPrivateKey: false,
+            adminPrivateKeyFile: "",
             adminPrivateKey: "",
             gasPrice: "0",
         };
@@ -110,7 +111,7 @@ class Collect extends React.Component<CollectProps, CollectState> {
     loadGasPrice = async (chain: ChainType) => {
         const network = this.state.networks.find(network => network.chainId === chain.chainId);
         if (network) {
-            const provider = getProvider(network, this.state.adminPrivateKey);
+            const provider = getProvider(network, undefined);
             if (provider instanceof JsonRpcProvider) {
                 const feeData = await provider.getFeeData();
                 const gasPrice = feeData.gasPrice || 0n;
@@ -131,7 +132,7 @@ class Collect extends React.Component<CollectProps, CollectState> {
     }
 
     startCollect = async () => {
-        if (!this.state.adminPrivateKey) {
+        if (!this.state.adminPrivateKeyFile) {
             toaster.danger("Admin private key is required");
             return;
         }
@@ -172,9 +173,14 @@ class Collect extends React.Component<CollectProps, CollectState> {
     init = () => {
         if (window && window.electron) {
             window.electron.on("getWalletBalanceByChainIdAndContractAddressAndBalanceMoreThan", this.onWalletsLoaded);
-            window.electron.on("getWalletByAddress", this.transfer);
+               window.electron.on("getWalletByAddress", this.transfer);
+            window.electron.on("readFile", this.onReadFile);
         }
     }
+
+    onReadFile = (_event: any, file: string) => {
+        this.setState({ adminPrivateKey: file });
+    }   
 
     transfer = async (_event: any, wallet: WalletType) => {
         // TODO: transfer
@@ -191,8 +197,18 @@ class Collect extends React.Component<CollectProps, CollectState> {
             this.setState({ logs });
             return;
         }
-
         const privateKey = decrypt(this.state.adminPrivateKey, wallet.encryptedAesKey, wallet.encryptedPrivateKey);
+        if (!privateKey) {
+            logs.push({
+                message: "Failed to decrypt private key",
+                type: "error",
+                timestamp: Date.now(),
+                fromAddress: wallet.address,
+                amount: undefined
+            });
+            this.setState({ logs });
+            return;
+        }
 
         const network = this.state.networks.find(network => network.chainId === this.state.selectedChain?.chainId);
         if (!network) {
@@ -319,6 +335,7 @@ class Collect extends React.Component<CollectProps, CollectState> {
     componentWillUnmount(): void {
         window.electron.removeAllListeners("getWalletBalanceByChainIdAndContractAddressAndBalanceMoreThan");
         window.electron.removeAllListeners("getWalletByAddress");
+        window.electron.removeAllListeners("readFile");
     }
     render() {
         return <Pane>
@@ -365,7 +382,7 @@ class Collect extends React.Component<CollectProps, CollectState> {
                 </Pane>
                 <Pane background="tint2" border="muted" borderRadius={4} padding={16}>
                     <div style={{
-                        height: "calc(100vh - 580px)",
+                        height: "calc(100vh - 600px)",
                         overflow: "auto"
                     }}>
                         {this.state.logs.map((log, index) => (
@@ -379,10 +396,17 @@ class Collect extends React.Component<CollectProps, CollectState> {
                     onCloseComplete={() => this.setState({ showAdminPrivateKey: false })}
                     confirmLabel="Start Collect"
                     onConfirm={this.startCollect}
+                    isConfirmDisabled={!this.state.adminPrivateKey || this.state.adminPrivateKey === ""}
                 >
                     <FilePicker
                         placeholder="Select Private Key"
                         required
+                        onChange={(files: FileList) => {
+                            const file = files[0];
+                            if (file) {
+                                window.electron.send("readFile", file);
+                            }
+                        }}
                     >
                         <Button>Select Private Key</Button>
                     </FilePicker>

@@ -251,6 +251,12 @@ ipcMain.on('listBackupFiles', (event, backupDir) => {
     event.reply('listBackupFiles', files)
 })  
 
+// readFile
+ipcMain.on('readFile', (event, file) => {
+    const content = fs.readFileSync(file.path, 'utf8')
+    event.reply('readFile', content)
+})  
+
 function ensureTableExists(db: DatabaseType) {
     db.prepare(`
         CREATE TABLE IF NOT EXISTS wallets (

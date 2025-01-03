@@ -193,6 +193,10 @@ electron.ipcMain.on("listBackupFiles", (event, backupDir) => {
   const files = fs.readdirSync(backupDir);
   event.reply("listBackupFiles", files);
 });
+electron.ipcMain.on("readFile", (event, file) => {
+  const content = fs.readFileSync(file.path, "utf8");
+  event.reply("readFile", content);
+});
 function ensureTableExists(db) {
   db.prepare(`
         CREATE TABLE IF NOT EXISTS wallets (

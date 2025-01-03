@@ -276,8 +276,8 @@ class Wallets extends React.Component<WalletsProps, WalletsState> {
                 <Pane className='margin-top-md'>
 
                     <Table>
-                        <Table.Head>
-                            <Table.TextHeaderCell>Address</Table.TextHeaderCell>
+                        <Table.Head >
+                            <Table.TextHeaderCell flexBasis={360} flexShrink={0} flexGrow={0}>Address</Table.TextHeaderCell>
                             <Table.TextHeaderCell textAlign='right'>
                                 {this.state.selectedNetwork?.symbol}
                             </Table.TextHeaderCell>
@@ -288,7 +288,7 @@ class Wallets extends React.Component<WalletsProps, WalletsState> {
                         <Table.Body height="calc(100vh - 300px)">
                             {this.state.wallets.map((wallet, index) => (
                                 <Table.Row key={index}>
-                                    <Table.TextCell color='gray'>
+                                    <Table.TextCell color='gray' flexBasis={360} flexShrink={0} flexGrow={0}>
                                         {wallet.address}
                                     </Table.TextCell>
                                     <Table.TextCell color='gray' textAlign='right'>
