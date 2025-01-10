@@ -44,6 +44,8 @@ function createWindow() {
   mainWindow = new electron.BrowserWindow({
     width: 1200,
     height: 800,
+    title: "Beaver Payment",
+    icon: path.join(__dirname, "../src/assets/favicon.ico"),
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: true,
