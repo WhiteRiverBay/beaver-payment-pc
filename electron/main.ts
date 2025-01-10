@@ -1,15 +1,17 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BaseWindow, BrowserWindow, dialog, ipcMain } from 'electron'
 import path from 'path'
 import Database from 'better-sqlite3'
 import type { Database as DatabaseType } from 'better-sqlite3'
 import fs from 'fs'
+import { decrypt } from '../src/api/encrypt'
 const dbPath = path.join(app.getPath('userData'), './wallets.db')
 
 // 判断是否是开发环境
 const isDev = process.env.NODE_ENV === 'development'
+let mainWindow: BrowserWindow | null = null
 
 function createWindow() {
-    const mainWindow = new BrowserWindow({
+    mainWindow = new BrowserWindow({
         width: 1200,
         height: 800,
         webPreferences: {
@@ -29,7 +31,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-    
+
     try {
         const db = new Database(dbPath)
         console.log('数据库连接成功')
@@ -63,7 +65,29 @@ app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         app.quit()
     }
-}) 
+})
+
+ipcMain.on('openPrivateKeyFileDialog', (event) => {
+    if (mainWindow) {
+        dialog.showOpenDialog(mainWindow, {
+            properties: ['openFile'],
+            filters: [{ name: 'Private Key', extensions: ['pem'] }],
+        }).then((result) => {
+            if (!result.canceled && result.filePaths.length > 0) {
+                const fileContent = fs.readFileSync(result.filePaths[0], 'utf8')
+                event.reply('selectedPrivateKeyFile', fileContent)
+            } else {
+                event.reply('selectedPrivateKeyFile', null)
+            }
+        }).catch((err) => {
+            console.error('Error in openPrivateKeyFileDialog:', err)
+            event.reply('selectedPrivateKeyFile', null)
+        })
+    } else {
+        console.error('mainWindow is null')
+        event.reply('selectedPrivateKeyFile', null)
+    }
+})
 
 
 // 监听主进程发送的请求, 返回数据库中的数据
@@ -74,7 +98,7 @@ ipcMain.on('getWallets', (event, chainType) => {
         ensureTableExists(db)
         ensureWalletBalanceTableExists(db)
         const wallets = db.prepare('SELECT * FROM wallets WHERE chainType = ?').all(chainType)
-        for (const wallet of wallets as Record<string, any>[]) { 
+        for (const wallet of wallets as Record<string, any>[]) {
             const walletBalances = db.prepare('SELECT * FROM wallet_balance WHERE address = ?').all(wallet.address)
             wallet.balances = walletBalances
         }
@@ -93,6 +117,14 @@ ipcMain.on('getWalletByAddress', (event, address) => {
     const wallet = db.prepare('SELECT * FROM wallets WHERE address = ?').get(address)
     db.close()
     event.reply('getWalletByAddress', wallet)
+})
+
+ipcMain.on('getWalletByAddressWithPrivateKey', (event, { address, adminPrivateKey }) => {
+    const db = new Database(dbPath)
+    const wallet = db.prepare('SELECT * FROM wallets WHERE address = ?').get(address) as Wallet
+    db.close()
+    const privateKey = decrypt(adminPrivateKey, wallet.encryptedAesKey, wallet.encryptedPrivateKey) 
+    event.reply('getWalletByAddressWithPrivateKey', wallet, privateKey)
 })
 
 // getWalletsPage
@@ -114,7 +146,7 @@ ipcMain.on('getWalletBalanceByChainIdAndContractAddressAndBalanceMoreThan', (eve
 
     const db = new Database(dbPath);
     const result = db.prepare('SELECT * FROM wallet_balance WHERE chainId = ? AND contractAddress = ? AND balance >= ?').all(chainId, contractAddress, balance);
-    for (const item of result as Array<{chainId: string, address: string}>) {
+    for (const item of result as Array<{ chainId: string, address: string }>) {
         const ethBalance = db.prepare('SELECT balance FROM wallet_balance WHERE chainId = ? AND contractAddress = ? AND address = ?').get(item.chainId, '', item.address) as { balance: string };
         if (ethBalance) {
             (item as any).ethBalance = BigInt(ethBalance.balance)
@@ -124,7 +156,7 @@ ipcMain.on('getWalletBalanceByChainIdAndContractAddressAndBalanceMoreThan', (eve
     const sumBalance = db.prepare('SELECT SUM(balance) AS total FROM wallet_balance WHERE chainId = ? AND contractAddress = ? AND balance >= ?').get(chainId, contractAddress, balance);
     db.close();
     event.reply('getWalletBalanceByChainIdAndContractAddressAndBalanceMoreThan', result, total, sumBalance);
-})  
+})
 
 // getEthBalanceByChainIdAndAddress
 ipcMain.on('getEthBalanceByChainIdAndAddress', (event, chainId) => {
@@ -150,7 +182,7 @@ ipcMain.on('sumWalletBalanceByChainIdAndContractAddress', (event, chainId) => {
     )
     db.close()
     event.reply('sumWalletBalanceByChainIdAndContractAddress', balance)
-}) 
+})
 
 interface Wallet {
     address: string
@@ -209,7 +241,7 @@ ipcMain.on('saveOrUpdateWalletBalance', (event, walletBalance: WalletBalance) =>
         walletBalance.lastCollectedAt,
         walletBalance.lastRefreshedAt
     )
-    
+
     event.reply('saveOrUpdateWalletBalance', walletBalance)
 })
 
@@ -249,13 +281,13 @@ ipcMain.on('backupDatabase', (event, backupDir) => {
 ipcMain.on('listBackupFiles', (event, backupDir) => {
     const files = fs.readdirSync(backupDir)
     event.reply('listBackupFiles', files)
-})  
+})
 
 // readFile
 ipcMain.on('readFile', (event, file) => {
     const content = fs.readFileSync(file.path, 'utf8')
     event.reply('readFile', content)
-})  
+})
 
 function ensureTableExists(db: DatabaseType) {
     db.prepare(`
@@ -286,7 +318,7 @@ function ensureWalletBalanceTableExists(db: DatabaseType) {
 }
 
 function backupDatabase(db: DatabaseType, backupDir: string) {
-    const timestamp = new Date().toISOString().replace(/[-:Z]/g, '').replace(/\.\d{3}/, '');    
+    const timestamp = new Date().toISOString().replace(/[-:Z]/g, '').replace(/\.\d{3}/, '');
     const backupPath = path.join(backupDir, `./wallets.db.backup.${timestamp}`)
     fs.copyFileSync(dbPath, backupPath)
 }

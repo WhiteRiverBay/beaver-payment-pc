@@ -3,10 +3,45 @@ const electron = require("electron");
 const path = require("path");
 const Database = require("better-sqlite3");
 const fs = require("fs");
+const crypto = require("crypto");
+function decrypt(adminPrivateKey, encryptedAesKey, encryptedPrivateKey) {
+  const aesKey = rsaDecryptWithPrivateKey(adminPrivateKey, encryptedAesKey);
+  const privateKeyDecrypted = aesDecrypt(aesKey, encryptedPrivateKey);
+  return privateKeyDecrypted;
+}
+function rsaDecryptWithPrivateKey(privateKey, toDecrypt) {
+  const buffer = Buffer.from(toDecrypt, "base64");
+  const decrypted = crypto.privateDecrypt(
+    {
+      key: privateKey,
+      // RSA/ECB/OAEPWithSHA-256AndMGF1Padding
+      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+      oaepHash: "sha256"
+    },
+    buffer
+  );
+  return decrypted.toString("base64");
+}
+function aesDecrypt(aesKey, encryptedData) {
+  const GCM_IV_LENGTH = 12;
+  const GCM_TAG_LENGTH = 16;
+  const key = Buffer.from(aesKey, "base64");
+  const data = Buffer.from(encryptedData, "base64");
+  const iv = data.subarray(0, GCM_IV_LENGTH);
+  const tag = data.subarray(data.length - GCM_TAG_LENGTH);
+  const encrypted = data.subarray(GCM_IV_LENGTH, data.length - GCM_TAG_LENGTH);
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+  decipher.setAutoPadding(false);
+  let decrypted = decipher.update(encrypted, void 0, "utf8");
+  decrypted += decipher.final("utf8");
+  return decrypted;
+}
 const dbPath = path.join(electron.app.getPath("userData"), "./wallets.db");
 const isDev = process.env.NODE_ENV === "development";
+let mainWindow = null;
 function createWindow() {
-  const mainWindow = new electron.BrowserWindow({
+  mainWindow = new electron.BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
@@ -55,6 +90,27 @@ electron.app.on("window-all-closed", () => {
     electron.app.quit();
   }
 });
+electron.ipcMain.on("openPrivateKeyFileDialog", (event) => {
+  if (mainWindow) {
+    electron.dialog.showOpenDialog(mainWindow, {
+      properties: ["openFile"],
+      filters: [{ name: "Private Key", extensions: ["pem"] }]
+    }).then((result) => {
+      if (!result.canceled && result.filePaths.length > 0) {
+        const fileContent = fs.readFileSync(result.filePaths[0], "utf8");
+        event.reply("selectedPrivateKeyFile", fileContent);
+      } else {
+        event.reply("selectedPrivateKeyFile", null);
+      }
+    }).catch((err) => {
+      console.error("Error in openPrivateKeyFileDialog:", err);
+      event.reply("selectedPrivateKeyFile", null);
+    });
+  } else {
+    console.error("mainWindow is null");
+    event.reply("selectedPrivateKeyFile", null);
+  }
+});
 electron.ipcMain.on("getWallets", (event, chainType) => {
   const db = new Database(dbPath);
   try {
@@ -78,6 +134,13 @@ electron.ipcMain.on("getWalletByAddress", (event, address) => {
   const wallet = db.prepare("SELECT * FROM wallets WHERE address = ?").get(address);
   db.close();
   event.reply("getWalletByAddress", wallet);
+});
+electron.ipcMain.on("getWalletByAddressWithPrivateKey", (event, { address, adminPrivateKey }) => {
+  const db = new Database(dbPath);
+  const wallet = db.prepare("SELECT * FROM wallets WHERE address = ?").get(address);
+  db.close();
+  const privateKey = decrypt(adminPrivateKey, wallet.encryptedAesKey, wallet.encryptedPrivateKey);
+  event.reply("getWalletByAddressWithPrivateKey", wallet, privateKey);
 });
 electron.ipcMain.on("getWalletsPage", (event, chainType, page, pageSize) => {
   const db = new Database(dbPath);

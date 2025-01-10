@@ -32,7 +32,6 @@ interface AirdropState {
     privateKey: string
     fromAddress: string
     fromAddressBalance: bigint
-    airdroping: boolean
     currentAirdropTx: string
 }
 
@@ -58,7 +57,6 @@ class Airdrop extends React.Component<AirdropProps, AirdropState> {
             privateKey: '',
             fromAddress: '',
             fromAddressBalance: 0n,
-            airdroping: false,
             currentAirdropTx: ''
         }
     }
@@ -165,6 +163,13 @@ class Airdrop extends React.Component<AirdropProps, AirdropState> {
         if (!currentNetwork) {
             return
         }
+
+        if (!e.target.value) {
+            this.setState({ fromAddress: '', fromAddressBalance: 0n, privateKey: '' })
+            return
+        }
+        this.setState({ privateKey: e.target.value })
+
         const provider = getProvider(currentNetwork, e.target.value || undefined)
         if (!provider) {
             return
@@ -201,11 +206,28 @@ class Airdrop extends React.Component<AirdropProps, AirdropState> {
     }
 
     doAirdrop = async () => {
-        const { fromAddress, privateKey, amountEach, gasPrice, estimatedCost, walletsBalance, usdtContract } = this.state
-        if (!fromAddress || !privateKey || !amountEach || !gasPrice || !estimatedCost || !walletsBalance || !usdtContract) {
-            toaster.danger('Please fill all fields')
+        const { privateKey, amountEach, gasPrice, walletsBalance, usdtContract } = this.state
+
+        if (!privateKey) {
+            toaster.danger('Please fill the private key')
             return
         }
+
+        if (!amountEach) {
+            toaster.danger('Please fill the amount each')
+            return
+        }
+
+        if (!gasPrice) {
+            toaster.danger('Please fill the gas price')
+            return
+        }
+
+        if (!usdtContract) {
+            toaster.danger('Please select the USDT contract')
+            return
+        }
+
         const currentNetwork = this.state.networks.find(n => n.chainId === this.state.selectedChain?.chainId)
         if (!currentNetwork) {
             return
@@ -214,13 +236,15 @@ class Airdrop extends React.Component<AirdropProps, AirdropState> {
         if (!provider) {
             return
         }
+
         const addresses = walletsBalance.map(w => w.address)
         const _gasPrice = ethers.parseUnits(gasPrice.toString(), 'gwei')
         const _amountEach = ethers.parseUnits(this.state.amountEach.toString(), currentNetwork.decimals || 18)
         if (provider instanceof ethers.JsonRpcProvider) {
-            this.setState({ airdroping: true })
             try {
-                batchAirdropETH(provider,
+                this.setState({ isLoading: true })
+                const that = this
+                await batchAirdropETH(provider,
                     privateKey,
                     addresses,
                     _amountEach,
@@ -228,31 +252,32 @@ class Airdrop extends React.Component<AirdropProps, AirdropState> {
                     this.state.batchSize,
                     async (txHash: string) => {
                         console.log('tx', txHash)
-                        this.setState({ currentAirdropTx: txHash, })
+                        that.setState({ currentAirdropTx: txHash, })
                     })
             } catch (error) {
                 console.error('Failed to airdrop:', error)
                 toaster.danger('Failed to airdrop')
             } finally {
-                this.setState({ airdroping: false })
+                this.setState({ isLoading: false, showAirdropDialog: false })
             }
         } else if (provider instanceof TronWeb) {
-            this.setState({ airdroping: true })
             try {
-                batchAirdropTRX(provider,
+                this.setState({ isLoading: true })
+                const that = this
+                await batchAirdropTRX(provider,
                     privateKey,
                     addresses,
                     _amountEach,
                     this.state.batchSize,
                     async (txHash: string) => {
                         console.log('tx', txHash)
-                        this.setState({ currentAirdropTx: txHash })
+                        that.setState({ currentAirdropTx: txHash })
                     })
             } catch (error) {
                 console.error('Failed to airdrop:', error)
                 toaster.danger('Failed to airdrop')
             } finally {
-                this.setState({ airdroping: false })
+                this.setState({ isLoading: false, showAirdropDialog: false })
             }
         }
 
@@ -366,12 +391,12 @@ class Airdrop extends React.Component<AirdropProps, AirdropState> {
                 title="Airdrop"
             >
                 <Pane>
-                    <TextInputField 
+                    <TextInputField
                         required
                         label={`Each airdrop amount (${this.state.selectedChain?.chainId === 56 ? 'BNB' :
-                        this.state.selectedChain?.chainId === 728126428 ? 'TRX' :
-                            'ETH'
-                        })`} placeholder="Amount" value={this.state.amountEach} onChange={(e: React.ChangeEvent<HTMLInputElement>) => this.setState({ amountEach: Number(e.target.value) })} />
+                            this.state.selectedChain?.chainId === 728126428 ? 'TRX' :
+                                'ETH'
+                            })`} placeholder="Amount" value={this.state.amountEach} onChange={(e: React.ChangeEvent<HTMLInputElement>) => this.setState({ amountEach: Number(e.target.value) })} />
                     <TextInputField
                         required
                         label="Gas Price(Gwei)" placeholder="Gas Price" value={this.state.gasPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => this.setState({ gasPrice: Number(e.target.value) })} />
@@ -401,9 +426,9 @@ class Airdrop extends React.Component<AirdropProps, AirdropState> {
                 </Pane>
             </Dialog>
 
-            <Overlay isShown={this.state.airdroping}>
+            <Overlay isShown={isLoading} shouldCloseOnClick={false} shouldCloseOnEscapePress={false}>
                 <Pane display='flex' justifyContent='center' alignItems='center' height='100%'>
-                    <Spinner size={40} marginRight={16}  />
+                    <Spinner size={40} marginRight={16} />
                     <div>Processing...{this.state.currentAirdropTx}</div>
                 </Pane>
             </Overlay>

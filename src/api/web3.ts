@@ -96,13 +96,12 @@ export const batchAirdropETH = async (
     const wallet = new ethers.Wallet(privateKey, provider)
     const contract = new ethers.Contract(AIRDROP_CONTRACT_ADDRESS_EVM, AIRDROP_ABI, wallet)
     const amounts = addresses.map(() => amountWei)
-    const fee = await contract.fee()
 
 
     for (const batch of chunk(addresses, batchSize)) {
         const tx = await contract.airdropCoin(batch, amounts, {
             gasPrice,
-            value: fee + amountWei * BigInt(batch.length),
+            value: amountWei * BigInt(batch.length),
         });
         await tx.wait(1)
         await onProgress(tx.hash)
@@ -140,8 +139,8 @@ export const transferERC20 = async (
     privateKey: string,
     to: string,
     contract: string,
-    gasPrice: string | undefined,
-    gasLimit: string | undefined,
+    gasPrice: bigint,
+    gasLimit: bigint | undefined,
     onProgress: (fromAddress: string, amount: bigint) => Promise<void>,
     onError: (error: any, fromAddress: string, amount: bigint) => Promise<void>
 ): Promise<TransactionResponse | undefined> => {
