@@ -1,1 +1,0 @@
-"use strict";const r=require("electron");r.contextBridge.exposeInMainWorld("electron",{versions:process.versions,send:(e,n)=>{r.ipcRenderer.send(e,n)},on:(e,n)=>{r.ipcRenderer.on(e,n)},removeAllListeners:e=>{r.ipcRenderer.removeAllListeners(e)}});
