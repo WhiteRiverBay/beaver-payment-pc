@@ -1,15 +1,1 @@
-"use strict";
-const electron = require("electron");
-electron.contextBridge.exposeInMainWorld("electron", {
-  // 示例 API
-  versions: process.versions,
-  send: (channel, data) => {
-    electron.ipcRenderer.send(channel, data);
-  },
-  on: (channel, func) => {
-    electron.ipcRenderer.on(channel, func);
-  },
-  removeAllListeners: (channel) => {
-    electron.ipcRenderer.removeAllListeners(channel);
-  }
-});
+"use strict";const r=require("electron");r.contextBridge.exposeInMainWorld("electron",{versions:process.versions,send:(e,n)=>{r.ipcRenderer.send(e,n)},on:(e,n)=>{r.ipcRenderer.on(e,n)},removeAllListeners:e=>{r.ipcRenderer.removeAllListeners(e)}});

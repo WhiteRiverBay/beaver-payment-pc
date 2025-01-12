@@ -37,8 +37,8 @@
     "vite-plugin-electron": "^0.29.0"
   },
   "build": {
-    "appId": "com.your-app.id",
-    "productName": "Your App Name",
+    "appId": "ltd.wrb.beaver",
+    "productName": "Beaver Payment",
     "directories": {
       "output": "dist"
     },
@@ -47,7 +47,24 @@
       "dist-electron/**/*"
     ],
     "mac": {
-      "category": "public.app-category.utilities"
+      "category": "public.app-category.utilities",
+      "target": "dmg"
+    },
+    "dmg": {
+      "icon": "src/assets/favicon.ico",
+      "iconSize": 1024,
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
     },
     "win": {
       "target": "nsis"
