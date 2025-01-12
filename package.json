@@ -11,7 +11,9 @@
     "start": "electron .",
     "electron:dev": "vite --mode development",
     "electron:build": "tsc -p tsconfig.electron.json && vite build && electron-builder",
-    "rebuild": "electron-rebuild -f -w better-sqlite3"
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
