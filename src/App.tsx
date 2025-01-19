@@ -32,7 +32,9 @@ export default function App() {
 
   const handleSetupSubmit = () => {
     if (serverUrl && apiToken) {
-      localStorage.setItem('serverUrl', serverUrl)
+      // 去掉 URL 末尾的斜杠后保存
+      const trimmedUrl = serverUrl.replace(/\/+$/, '')
+      localStorage.setItem('serverUrl', trimmedUrl)
       localStorage.setItem('apiToken', apiToken)
       setShowSetupDialog(false)
       // 刷新页面

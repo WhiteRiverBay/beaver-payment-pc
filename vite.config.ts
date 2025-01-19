@@ -28,12 +28,26 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
-      buffer: 'buffer',
+      buffer: 'buffer'
     }
   },
   define: {
     'global': {},
     'process.env': {},
     'Buffer': ['buffer', 'Buffer']
+  },
+  optimizeDeps: {
+    include: ['buffer']
+  },
+  base: './',
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    rollupOptions: {
+      external: ['better-sqlite3'],
+      output: {
+        format: 'es'
+      }
+    }
   }
 })
