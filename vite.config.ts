@@ -32,8 +32,8 @@ export default defineConfig({
     }
   },
   define: {
-    'global': {},
-    'process.env': {},
+    'global': 'globalThis',
+    'process.env': process.env,
     'Buffer': ['buffer', 'Buffer']
   },
   optimizeDeps: {
@@ -46,7 +46,7 @@ export default defineConfig({
     rollupOptions: {
       external: ['better-sqlite3'],
       output: {
-        format: 'cjs'
+        format: 'es'
       }
     }
   }
