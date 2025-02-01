@@ -30,4 +30,5 @@ export interface TradeLog {
   txTo?: string;
   blockNumber?: string;
   createdAt: number;
+  confirmedBlocksRequired?: number;
 }

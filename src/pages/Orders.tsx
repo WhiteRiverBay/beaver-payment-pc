@@ -1,7 +1,8 @@
-import { Pane, TextInput, Select, Button, Table, Pagination, IconButton, EyeOnIcon, EyeOffIcon, InfoSignIcon, Dialog, } from 'evergreen-ui'
+import { Pane, TextInput, Select, Button, Table, Pagination, IconButton, EyeOnIcon, EyeOffIcon, InfoSignIcon, Dialog, Badge, } from 'evergreen-ui'
 import React from 'react'
 import { TradeLog } from '../model/trade_log'
-
+import { ChainType } from '../model/chain'
+import { getChains } from '../api/api'
 interface IOrdersProps {
 }
 
@@ -16,6 +17,7 @@ interface IOrdersState {
   uid: string
   dialogOpen: boolean
   dialogOrder: TradeLog | null
+  chains: ChainType[]
 }
 
 class Orders extends React.Component<IOrdersProps, IOrdersState> {
@@ -32,11 +34,22 @@ class Orders extends React.Component<IOrdersProps, IOrdersState> {
       uid: '',
       dialogOpen: false,
       dialogOrder: null,
+      chains: [],
     }
   }
 
   componentDidMount() {
     this.handleFilter()
+    this.loadChains()
+  }
+
+  async loadChains() {
+    const serverUrl = localStorage.getItem("serverUrl");
+    if (!serverUrl) {
+      return;
+    }
+    const chains = await getChains(serverUrl);
+    this.setState({ chains })
   }
 
   handleFilter = async () => {
@@ -182,14 +195,89 @@ class Orders extends React.Component<IOrdersProps, IOrdersState> {
           title="Order Detail"
           hasCancel={false}
         >
-          <div>Order Detail</div>
-          <div>
-            <div>Payment ID: {this.state.dialogOrder?.paymentId}</div>
-            <div>Memo: {this.state.dialogOrder?.memo}</div>
-            <div>Amount: {this.state.dialogOrder?.amount}</div>
-            <div>Type: {this.state.dialogOrder?.type}</div>
-            <div>Created At: {this.state.dialogOrder?.createdAt}</div>
-          </div>  
+          <div className="text-gray-700" style={{
+            lineHeight: '2',
+          }}>
+            <div>
+              {this.state.dialogOrder?.paymentId && (
+                <Badge color="blue">{this.state.dialogOrder?.paymentId}</Badge>
+              )}
+              <div className='flex justify-between'>
+                <div>AMOUNT</div>
+                <div>$ {this.state.dialogOrder?.amount}</div>
+              </div>
+
+              <div className='flex justify-between items-center'>
+                <div>TYPE</div>
+                {this.state.dialogOrder?.type === "DEPOSIT" && (
+                  <Badge color="green">Deposit</Badge>
+                )}
+                {this.state.dialogOrder?.type === "WITHDRAW_CONFIRM" && (
+                  <Badge color="red">Withdraw Confirm</Badge>
+                )}
+                {this.state.dialogOrder?.type === "WITHDRAW_APPLY" && (
+                  <Badge color="yellow">Withdraw Apply</Badge>
+                )}
+                {this.state.dialogOrder?.type === "WITHDRAW_REJECT" && (
+                  <Badge color="red">Withdraw Reject</Badge>
+                )}
+                {this.state.dialogOrder?.type === "PAYMENT" && (
+                  <Badge color="blue">Payment</Badge>
+                )}
+                {this.state.dialogOrder?.type === "REFUND" && (
+                  <Badge color="purple">Refund</Badge>
+                )}
+              </div>
+
+              <div className='flex justify-between'>
+                <div>CREATED AT</div>
+                {this.state.dialogOrder?.createdAt && (
+                  new Date(this.state.dialogOrder?.createdAt).toLocaleString()
+                )}
+              </div>
+
+              <div className='flex justify-between'>
+                <div>UID</div>
+                <div>{this.state.dialogOrder?.uid}</div>
+              </div>
+
+              <div style={{
+                backgroundColor: '#f0f0f0',
+                padding: '4px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                color: '#333',
+                fontWeight: 'bold',
+                marginTop: '10px',
+                marginBottom: '10px',
+              }}>
+                {this.state.dialogOrder?.memo}
+              </div>
+              {this.state.dialogOrder?.type === "DEPOSIT" && (
+                <div style={{
+                  backgroundColor: '#f0f0f0',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  color: '#333',
+                  fontWeight: 'bold',
+                  marginTop: '10px',
+                  marginBottom: '10px',
+                  overflowX: 'auto',
+                  wordBreak: 'break-all',
+                }} className='text-sm'>
+                  <div className="flex justify-between items-center"><div style={{ width: '100px' }}>Hash: </div><div>{this.state.dialogOrder?.txHash}</div> </div>
+                  <div className="flex justify-between items-center"><div style={{ width: '100px' }}>From: </div><div>{this.state.dialogOrder?.txFrom}</div></div>
+                  <div className="flex justify-between items-center"><div style={{ width: '100px' }}>To: </div><div>{this.state.dialogOrder?.txTo}</div></div>
+                  <div className="flex justify-between items-center"><div style={{ width: '100px' }}>Confirmed: </div><div>{this.state.dialogOrder?.confirmedBlocks}</div></div>
+                  <div className="flex justify-between items-center"><div style={{ width: '100px' }}>Required: </div><div>{this.state.dialogOrder?.confirmedBlocksRequired}</div></div>
+                  <div className="flex justify-between items-center"><div style={{ width: '100px' }}>Block: </div><div>{this.state.dialogOrder?.blockNumber}</div></div>
+                  <div className="flex justify-between items-center"><div style={{ width: '100px' }}>Chain ID: </div><div>{this.state.dialogOrder?.chainId}</div></div>
+                  <div className="flex justify-between items-center"><div style={{ width: '100px' }}>Chain: </div><div>{this.state.chains.find(chain => chain.chainId === this.state.dialogOrder?.chainId)?.chainName}</div></div>
+                </div>
+              )}
+            </div>
+          </div>
         </Dialog>
       </Pane>
     )
