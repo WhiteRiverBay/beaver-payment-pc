@@ -1,4 +1,4 @@
-import { Pane, SelectMenu, Button, Table, Dialog, TextInputField, Overlay, Spinner } from 'evergreen-ui'
+import { Pane, SelectMenu, Button, Table, Dialog, TextInputField, Overlay, Spinner, Select } from 'evergreen-ui'
 import { ethers } from 'ethers'
 import { TronWeb } from 'tronweb'
 import React from 'react'
@@ -235,18 +235,16 @@ class Wallets extends React.Component<WalletsProps, WalletsState> {
         return (
             <Pane>
                 <Pane className=''>
-                    <SelectMenu
-                        options={this.state.networks.map(network => ({
-                            label: network.name,
-                            value: network.chainId
-                        }))}
-                        hasFilter={false}
-                        onSelect={(item) => this.handleNetworkChange(item.value as number)}
+                    <Select
+                        value={this.state.selectedNetwork?.chainId}
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => this.handleNetworkChange(Number(e.target.value))}
                     >
-                        <Button>
-                            {this.state.selectedNetwork?.name}
-                        </Button>
-                    </SelectMenu>
+                        {this.state.networks.map(network => (
+                            <option key={network.chainId} value={network.chainId}>
+                                {network.name}
+                            </option>
+                        ))}
+                    </Select>
                 </Pane>
                 <Pane className='margin-top-md'>
                     <div>
